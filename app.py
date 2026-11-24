@@ -193,6 +193,10 @@ class Child:
 
 
 def main():
+    # /tmp di container Pterodactyl kecil (tmpfs), pip/npm kehabisan tempat di situ.
+    tmp = os.path.join(HOME, ".tmp")
+    os.makedirs(tmp, exist_ok=True)
+    os.environ["TMPDIR"] = tmp
     signal.signal(signal.SIGTERM, lambda *_: stopping.set())
     signal.signal(signal.SIGINT, lambda *_: stopping.set())
     s = load_secrets()
