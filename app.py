@@ -27,6 +27,7 @@ NR_PREFIX = os.path.join(HOME, ".9router-app")
 NR_APP = os.path.join(NR_PREFIX, "node_modules", "9router", "app")
 NR_DATA = os.path.join(HOME, "data", "9router")
 HERMES_VENV = os.path.join(HOME, ".hermes-venv")
+HERMES_SRC = os.path.join(HOME, ".hermes-src")
 HERMES_BIN = os.path.join(HERMES_VENV, "bin", "hermes")
 HERMES_HOME = os.path.join(HOME, "data", "hermes")
 SECRETS = os.path.join(HOME, "secrets.env")
@@ -115,9 +116,22 @@ def ensure_hermes():
     log(f"pasang Hermes {HERMES_VERSION} (agak lama, sekali saja) ...")
     if not os.path.exists(os.path.join(HERMES_VENV, "bin", "python")):
         run([sys.executable, "-m", "venv", HERMES_VENV])
-    src = f"https://github.com/NousResearch/hermes-agent/archive/refs/tags/{HERMES_VERSION}.tar.gz"
+    # Hermes v0.23 menolak dibuild jadi wheel; yang didukung = install editable dari source.
+    # Source disimpan permanen di HERMES_SRC karena editable install membacanya terus.
+    url = f"https://github.com/NousResearch/hermes-agent/archive/refs/tags/{HERMES_VERSION}.tar.gz"
+    tgz = os.path.join(HOME, "hermes-src.tar.gz")
+    log("download source Hermes ...")
+    urllib.request.urlretrieve(url, tgz)
+    shutil.rmtree(HERMES_SRC, ignore_errors=True)
+    unpack = HERMES_SRC + ".unpack"
+    shutil.rmtree(unpack, ignore_errors=True)
+    with tarfile.open(tgz) as t:
+        t.extractall(unpack, filter="data")
+    os.remove(tgz)
+    os.rename(os.path.join(unpack, os.listdir(unpack)[0]), HERMES_SRC)
+    shutil.rmtree(unpack, ignore_errors=True)
     run([os.path.join(HERMES_VENV, "bin", "pip"), "install", "--no-cache-dir",
-         f"hermes-agent[messaging] @ {src}"])
+         "-e", HERMES_SRC + "[messaging]"])
     with open(marker, "w") as f:
         f.write(HERMES_VERSION)
 
