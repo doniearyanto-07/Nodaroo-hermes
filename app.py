@@ -39,6 +39,7 @@ DEFAULTS = {
     "MODEL_BASE_URL": "https://api.tokenflow.my.id/v1",
     "MODEL_NAME": "deepseek-v4.1-flash-1017",
     "MODEL_CONTEXT": "131072",
+    "TELEGRAM_API_BASE": "https://tg-relay.aryantrix.workers.dev",
 }
 NEED_9ROUTER = ["NINEROUTER_PASSWORD"]
 NEED_HERMES = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_ALLOWED_USERS", "MODEL_API_KEY"]
@@ -175,10 +176,17 @@ def write_hermes_config(s):
         f"  base_url: \"{s['MODEL_BASE_URL']}\"\n"
         f"  api_key: \"{s['MODEL_API_KEY']}\"\n"
         f"  context_length: {int(s['MODEL_CONTEXT'])}\n"
+        # IP server Nodaroo kena rem Telegram ("Flood control"), jadi lewat relay Cloudflare
+        # Worker milik Arya. Bisa diganti/dikosongkan lewat TELEGRAM_API_BASE di secrets.env.
+        + (f"platforms:\n  telegram:\n    extra:\n"
+           f"      base_url: \"{s['TELEGRAM_API_BASE']}/bot\"\n"
+           f"      base_file_url: \"{s['TELEGRAM_API_BASE']}/file/bot\"\n"
+           if s.get('TELEGRAM_API_BASE') else "")
     )
     env = (
         f"TELEGRAM_BOT_TOKEN={s['TELEGRAM_BOT_TOKEN']}\n"
         f"TELEGRAM_ALLOWED_USERS={s['TELEGRAM_ALLOWED_USERS']}\n"
+        + ("HERMES_TELEGRAM_DISABLE_FALLBACK_IPS=1\n" if s.get('TELEGRAM_API_BASE') else "")
     )
     for name, body in (("config.yaml", cfg), (".env", env)):
         p = os.path.join(HERMES_HOME, name)
@@ -258,6 +266,8 @@ def main():
         write_hermes_config(s)
         env = dict(os.environ, HERMES_HOME=HERMES_HOME, HOME=HOME,
                    PATH=os.path.join(HERMES_VENV, "bin") + os.pathsep + NODE_BIN + os.pathsep + os.environ.get("PATH", ""))
+        if s.get("TELEGRAM_API_BASE"):
+            env["HERMES_TELEGRAM_DISABLE_FALLBACK_IPS"] = "1"
         children.append(Child("hermes", [HERMES_BIN, "gateway", "run"], HOME, env))
 
     for c in children:
