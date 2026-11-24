@@ -28,6 +28,9 @@ NR_APP = os.path.join(NR_PREFIX, "node_modules", "9router", "app")
 NR_DATA = os.path.join(HOME, "data", "9router")
 HERMES_VENV = os.path.join(HOME, ".hermes-venv")
 HERMES_SRC = os.path.join(HOME, ".hermes-src")
+HERMES_PY = "3.14"
+UV_VERSION = "0.13.9"
+UV_VENV = os.path.join(HOME, ".uv-venv")
 HERMES_BIN = os.path.join(HERMES_VENV, "bin", "hermes")
 HERMES_HOME = os.path.join(HOME, "data", "hermes")
 SECRETS = os.path.join(HOME, "secrets.env")
@@ -110,12 +113,22 @@ def ensure_9router():
 
 
 def ensure_hermes():
+    # Dependensi Hermes v0.23 cuma dideklarasikan buat Python 3.14, sedangkan container
+    # ini Python 3.12. Jadi pakai uv buat ambil Python 3.14 (tanpa root), sama kayak installer resmi.
+    want = HERMES_VERSION + "-py" + HERMES_PY
     marker = os.path.join(HERMES_VENV, ".version")
-    if os.path.exists(HERMES_BIN) and open_text(marker) == HERMES_VERSION:
+    if os.path.exists(HERMES_BIN) and open_text(marker) == want:
         return
-    log(f"pasang Hermes {HERMES_VERSION} (agak lama, sekali saja) ...")
-    if not os.path.exists(os.path.join(HERMES_VENV, "bin", "python")):
-        run([sys.executable, "-m", "venv", HERMES_VENV])
+    log(f"pasang Hermes {HERMES_VERSION} + Python {HERMES_PY} (agak lama, sekali saja) ...")
+    uv = os.path.join(UV_VENV, "bin", "uv")
+    if not os.path.exists(uv):
+        run([sys.executable, "-m", "venv", UV_VENV])
+        run([os.path.join(UV_VENV, "bin", "pip"), "install", "--no-cache-dir", f"uv=={UV_VERSION}"])
+    uv_env = dict(os.environ, UV_PYTHON_INSTALL_DIR=os.path.join(HOME, ".uv-python"),
+                  UV_CACHE_DIR=os.path.join(HOME, ".uv-cache"))
+    run([uv, "python", "install", HERMES_PY], env=uv_env)
+    shutil.rmtree(HERMES_VENV, ignore_errors=True)
+    run([uv, "venv", "--python", HERMES_PY, HERMES_VENV], env=uv_env)
     # Hermes v0.23 menolak dibuild jadi wheel; yang didukung = install editable dari source.
     # Source disimpan permanen di HERMES_SRC karena editable install membacanya terus.
     url = f"https://github.com/NousResearch/hermes-agent/archive/refs/tags/{HERMES_VERSION}.tar.gz"
@@ -130,10 +143,10 @@ def ensure_hermes():
     os.remove(tgz)
     os.rename(os.path.join(unpack, os.listdir(unpack)[0]), HERMES_SRC)
     shutil.rmtree(unpack, ignore_errors=True)
-    run([os.path.join(HERMES_VENV, "bin", "pip"), "install", "--no-cache-dir",
-         "-e", HERMES_SRC + "[messaging]"])
+    run([uv, "pip", "install", "--python", os.path.join(HERMES_VENV, "bin", "python"),
+         "-e", HERMES_SRC + "[messaging]"], env=uv_env)
     with open(marker, "w") as f:
-        f.write(HERMES_VERSION)
+        f.write(want)
 
 
 def open_text(path):
