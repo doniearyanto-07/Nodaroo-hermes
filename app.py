@@ -143,8 +143,16 @@ def ensure_hermes():
     os.remove(tgz)
     os.rename(os.path.join(unpack, os.listdir(unpack)[0]), HERMES_SRC)
     shutil.rmtree(unpack, ignore_errors=True)
+    # uv pip tidak otomatis baca [tool.uv] override-dependencies milik Hermes (mis. Pillow 13),
+    # jadi diambil dari pyproject.toml-nya sendiri dan dikasih lewat --overrides.
+    import tomllib
+    with open(os.path.join(HERMES_SRC, "pyproject.toml"), "rb") as f:
+        ov = tomllib.load(f).get("tool", {}).get("uv", {}).get("override-dependencies", [])
+    ov_file = os.path.join(HOME, ".hermes-overrides.txt")
+    with open(ov_file, "w") as f:
+        f.write("\n".join(ov) + "\n")
     run([uv, "pip", "install", "--python", os.path.join(HERMES_VENV, "bin", "python"),
-         "-e", HERMES_SRC + "[messaging]"], env=uv_env)
+         "--overrides", ov_file, "-e", HERMES_SRC + "[messaging]"], env=uv_env)
     with open(marker, "w") as f:
         f.write(want)
 
