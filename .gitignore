@@ -1,0 +1,8 @@
+secrets.env
+data/
+.node/
+.9router-app/
+.hermes-venv/
+.local/
+*.tar.xz
+__pycache__/
